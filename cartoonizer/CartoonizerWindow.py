@@ -22,12 +22,14 @@ class CartoonizerWindow(QtWidgets.QMainWindow):
         self.__img_base = cv.imread(self.__filename)
         self.__img_display = self.__img_base.copy()
         self.__img_slic = self.__img_base.copy()
+        self.__img_kmean = self.__img_base.copy()
         self.__region_size = 50
         self.__compactness = 0
         self.__blur_kernel_size = 5
-        self.__dilat_kernel_size = 3
+        self.__dilat_kernel_size = 1
         self.__edge_t1 = 100
         self.__edge_t2 = 200
+        self.__k = 10
 
         # name the window
         self.setWindowTitle("Cartoonizer")
@@ -44,7 +46,7 @@ class CartoonizerWindow(QtWidgets.QMainWindow):
         self.__context_menu()
         self.__link_actions()
 
-        self.__refresh_display()
+        cv.imshow("Cartoonizer", self.__img_display)
 
     def __status_bar(self):
         self.setStatusBar(QtWidgets.QStatusBar(self))
@@ -107,9 +109,7 @@ class CartoonizerWindow(QtWidgets.QMainWindow):
 
         # Some aesthetic value
         size_btn = QtCore.QSize(200, 30)
-        size_slider = QtCore.QSize(250, 30)
-        icon_size = QtCore.QSize(20, 20)
-        btn_icon_size = QtCore.QSize(28, 28)
+        size_slider = QtCore.QSize(400, 30)
 
         # Main Layout
         main_layout = QtWidgets.QVBoxLayout()
@@ -118,10 +118,13 @@ class CartoonizerWindow(QtWidgets.QMainWindow):
         self.__central_widget.setLayout(main_layout)
 
         # Layout top
-        layout_top = QtWidgets.QVBoxLayout()
+        layout_top = QtWidgets.QHBoxLayout()
         layout_top.setContentsMargins(15,15,15,15)
         main_layout.addLayout(layout_top)
 
+        # Layout slic
+        layout_slic = QtWidgets.QVBoxLayout()
+        layout_top.addLayout(layout_slic)
         self.__ui_btn_submit_slic = QtWidgets.QPushButton("Compute SLIC")
         self.__ui_btn_submit_slic.setFixedSize(size_btn)
         self.__ui_region_size = QtWidgets.QLineEdit(str(self.__region_size))
@@ -132,9 +135,21 @@ class CartoonizerWindow(QtWidgets.QMainWindow):
         layout_comp_param = QtWidgets.QHBoxLayout()
         layout_comp_param.addWidget(QtWidgets.QLabel("Compactness"), 0, QtCore.Qt.AlignRight)
         layout_comp_param.addWidget(self.__ui_compactness, 0, QtCore.Qt.AlignHCenter)
-        layout_top.addLayout(layout_rs_param)
-        layout_top.addLayout(layout_comp_param)
-        layout_top.addWidget(self.__ui_btn_submit_slic, 0, QtCore.Qt.AlignHCenter)
+        layout_slic.addLayout(layout_rs_param)
+        layout_slic.addLayout(layout_comp_param)
+        layout_slic.addWidget(self.__ui_btn_submit_slic, 0, QtCore.Qt.AlignHCenter)
+
+        # Layout kmean
+        layout_kmean = QtWidgets.QVBoxLayout()
+        layout_top.addLayout(layout_kmean)
+        self.__ui_btn_submit_kmean = QtWidgets.QPushButton("Compute KMEAN")
+        self.__ui_btn_submit_kmean.setFixedSize(size_btn)
+        self.__ui_k = QtWidgets.QLineEdit(str(self.__k))
+        layout_k_param = QtWidgets.QHBoxLayout()
+        layout_k_param.addWidget(QtWidgets.QLabel("Nb Cluster"), 0, QtCore.Qt.AlignRight)
+        layout_k_param.addWidget(self.__ui_k, 0, QtCore.Qt.AlignHCenter)
+        layout_kmean.addLayout(layout_k_param)
+        layout_kmean.addWidget(self.__ui_btn_submit_kmean, 0, QtCore.Qt.AlignHCenter |QtCore.Qt.AlignBottom)
 
         # Layout bottom
         layout_bot = QtWidgets.QVBoxLayout()
@@ -155,14 +170,14 @@ class CartoonizerWindow(QtWidgets.QMainWindow):
         self.__ui_slider_t2 = QtWidgets.QSlider()
         self.__ui_slider_t1.setOrientation(QtCore.Qt.Horizontal)
         self.__ui_slider_t1.setTickPosition(QtWidgets.QSlider.TicksBelow)
-        self.__ui_slider_t1.setTickInterval(1)
+        self.__ui_slider_t1.setTickInterval(10)
         self.__ui_slider_t1.setMinimum(0)
         self.__ui_slider_t1.setMaximum(255)
         self.__ui_slider_t1.setFixedSize(size_slider)
         self.__ui_slider_t1.setValue(self.__edge_t1)
         self.__ui_slider_t2.setOrientation(QtCore.Qt.Horizontal)
         self.__ui_slider_t2.setTickPosition(QtWidgets.QSlider.TicksBelow)
-        self.__ui_slider_t2.setTickInterval(1)
+        self.__ui_slider_t2.setTickInterval(10)
         self.__ui_slider_t2.setMinimum(0)
         self.__ui_slider_t2.setMaximum(255)
         self.__ui_slider_t2.setFixedSize(size_slider)
@@ -186,11 +201,28 @@ class CartoonizerWindow(QtWidgets.QMainWindow):
         layout_bot.addLayout(layout_t1_param)
         layout_bot.addLayout(layout_t2_param)
 
-    def __submit_changes(self):
+    def __submit_slic(self):
         self.__compactness = int(self.__ui_compactness.text())
         self.__region_size = int(self.__ui_region_size.text())
         self.__compute_slic()
         self.__refresh_display()
+
+    def __submit_kmean(self):
+        self.__k = int(self.__ui_k.text())
+        self.__compute_kmean()
+        self.__refresh_display()
+
+    def __compute_kmean(self):
+        img = self.__img_base.copy()
+        pixel_values = img.reshape((-1, 3))
+        pixel_values = np.float32(pixel_values)
+        criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 100, 0.2)
+        _, labels, (centers) = cv.kmeans(pixel_values, self.__k, None, criteria, 10, cv.KMEANS_RANDOM_CENTERS)
+        centers = np.uint8(centers)
+        labels = labels.flatten()
+        res = centers[labels.flatten()]
+        self.__img_slic = res.reshape(img.shape)
+
 
     def __compute_slic(self):
         slic = Slic(self.__img_base, self.__region_size, self.__compactness)
@@ -238,14 +270,15 @@ class CartoonizerWindow(QtWidgets.QMainWindow):
 
     # Link action to elements in the UI
     def __link_actions(self):
-        self.__ui_btn_submit_slic.clicked.connect(self.__submit_changes)
+        self.__ui_btn_submit_slic.clicked.connect(self.__submit_slic)
+        self.__ui_btn_submit_kmean.clicked.connect(self.__submit_kmean)
         self.__ui_blur_kernel_size.textChanged.connect(self.__blur_kernel_size_changed)
         self.__ui_dilat_kernel_size.textChanged.connect(self.__dilat_kernel_size_changed)
         self.__ui_slider_t1.valueChanged.connect(self.__edge_t1_changed)
         self.__ui_slider_t2.valueChanged.connect(self.__edge_t2_changed)
 
     def __refresh_display(self):
-        img_blur = cv.GaussianBlur(self.__img_slic, (self.__blur_kernel_size,self.__blur_kernel_size), 0)
+        img_blur = cv.GaussianBlur(self.__img_base, (self.__blur_kernel_size,self.__blur_kernel_size), 0)
         edges = cv.Canny(img_blur, threshold1=self.__edge_t1, threshold2=self.__edge_t2)
 
         kernel = np.ones((self.__dilat_kernel_size,self.__dilat_kernel_size), np.uint8)
