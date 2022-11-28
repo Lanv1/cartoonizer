@@ -22,7 +22,7 @@ class Slic:
 
         # retrieve the segmentation result
         self.__img_slic = self.__slic.getLabels()  # height x width matrix. Each component indicates the superpixel index of the corresponding pixel position
-        pprint(self.__img_slic)
+
     def rearrange_to_superpixels(self):
         nb_sp = self.__slic.getNumberOfSuperpixels()
         self.__superpixels = [[] for _ in range(nb_sp)]

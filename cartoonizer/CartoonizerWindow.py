@@ -18,7 +18,7 @@ class CartoonizerWindow(QtWidgets.QMainWindow):
         super().__init__()
 
         # Model attributes
-        self.__filename = 'asset/faker.jpg'
+        self.__filename = 'asset/lena.png'
         self.__img_base = cv.imread(self.__filename)
         self.__img_display = self.__img_base.copy()
         self.__img_slic = self.__img_base.copy()
@@ -84,7 +84,7 @@ class CartoonizerWindow(QtWidgets.QMainWindow):
     def __set_new_file(self, filename):
         if filename is not None:
             self.__filename = filename
-            self.__img_base = cv.imread('asset/faker.jpg')
+            self.__img_base = cv.imread(filename)
 
     def __save_file(self):
         self.statusBar().showMessage("File saved", 1000)
